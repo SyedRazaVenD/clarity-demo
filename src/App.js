@@ -19,6 +19,18 @@ function App() {
   const [errorCount, setErrorCount] = useState(0);
   const [featureUsage, setFeatureUsage] = useState({});
 
+  // Game state
+  const [gameState, setGameState] = useState({
+    score: 0,
+    timeLeft: 30,
+    isPlaying: false,
+    highScore: 0,
+    targetPosition: { x: 50, y: 50 },
+    gameLevel: 1,
+    targetsHit: 0,
+    totalTargets: 0,
+  });
+
   // Multi-step form state
   const [multiStepForm, setMultiStepForm] = useState({
     step: 1,
@@ -77,28 +89,8 @@ function App() {
       value.length
     );
 
-    // Check for error condition (number 9)
-    if (name === "age" && value === "9") {
-      setMultiStepForm((prev) => ({
-        ...prev,
-        errors: {
-          ...prev.errors,
-          [name]: "Error: Number 9 is not allowed for testing purposes!",
-        },
-      }));
-
-      // Track form error
-      clarityEvents.track("form_error", {
-        field_name: name,
-        error_message: "Number 9 is not allowed for testing purposes!",
-        form_type: "multi_step_form",
-        step: multiStepForm.step,
-        value: value,
-      });
-
-      // Track user frustration
-      clarityEvents.rageClick("form_field", activeTab, 1);
-    }
+    // Note: Error validation for age field "9" is now handled in nextStep() function
+    // to simulate real application behavior where validation occurs on form submission/navigation
   };
 
   const handleSubmit = (e) => {
@@ -130,6 +122,40 @@ function App() {
   const nextStep = () => {
     if (multiStepForm.step < multiStepForm.totalSteps) {
       const nextStepNum = multiStepForm.step + 1;
+
+      // Validate current step before proceeding
+      if (multiStepForm.step === 2) {
+        // Validate age field on step 2
+        if (multiStepForm.data.age === "9") {
+          // Set error state
+          setMultiStepForm((prev) => ({
+            ...prev,
+            errors: {
+              ...prev.errors,
+              age: "Error: Age cannot be 9. Please enter a valid age.",
+            },
+          }));
+
+          // Track form validation error
+          clarityEvents.formValidationError(
+            "age",
+            "Age cannot be 9. Please enter a valid age.",
+            "multi_step_form",
+            multiStepForm.step,
+            multiStepForm.data.age,
+            "step_navigation"
+          );
+
+          // Track user frustration
+          clarityEvents.rageClick("form_field", activeTab, 1);
+
+          // Show error alert like in a real application
+          alert(
+            "Validation Error: Age cannot be 9. Please enter a valid age before proceeding."
+          );
+          return; // Prevent navigation
+        }
+      }
 
       // Track step navigation
       clarityEvents.track("form_step_navigation", {
@@ -371,6 +397,128 @@ function App() {
     setTestResults((prev) => [...prev, `User journey step: ${step}`]);
   };
 
+  // Game functions
+  const startGame = () => {
+    setGameState((prev) => ({
+      ...prev,
+      isPlaying: true,
+      score: 0,
+      timeLeft: 30,
+      gameLevel: 1,
+      targetsHit: 0,
+      totalTargets: 0,
+    }));
+
+    // Track game start
+    clarityEvents.track("game_started", {
+      game_type: "target_clicker",
+      initial_time: 30,
+    });
+
+    clarityEvents.featureUsage("minigame", "started", {
+      game_type: "target_clicker",
+    });
+
+    // Start game timer
+    const gameTimer = setInterval(() => {
+      setGameState((prev) => {
+        if (prev.timeLeft <= 1) {
+          clearInterval(gameTimer);
+          endGame(prev.score);
+          return { ...prev, isPlaying: false, timeLeft: 0 };
+        }
+        return { ...prev, timeLeft: prev.timeLeft - 1 };
+      });
+    }, 1000);
+
+    // Move target periodically
+    const targetMover = setInterval(() => {
+      setGameState((prev) => {
+        if (!prev.isPlaying) {
+          clearInterval(targetMover);
+          return prev;
+        }
+        return {
+          ...prev,
+          targetPosition: {
+            x: Math.random() * 80 + 10, // 10-90%
+            y: Math.random() * 60 + 20, // 20-80%
+          },
+          totalTargets: prev.totalTargets + 1,
+        };
+      });
+    }, 1500 - gameState.gameLevel * 100); // Faster as level increases
+  };
+
+  const endGame = (finalScore) => {
+    const newHighScore = Math.max(gameState.highScore, finalScore);
+
+    setGameState((prev) => ({
+      ...prev,
+      isPlaying: false,
+      highScore: newHighScore,
+    }));
+
+    // Track game completion
+    clarityEvents.track("game_completed", {
+      game_type: "target_clicker",
+      final_score: finalScore,
+      high_score: newHighScore,
+      targets_hit: gameState.targetsHit,
+      total_targets: gameState.totalTargets,
+      accuracy:
+        gameState.totalTargets > 0
+          ? ((gameState.targetsHit / gameState.totalTargets) * 100).toFixed(1)
+          : 0,
+    });
+
+    clarityEvents.featureUsage("minigame", "completed", {
+      game_type: "target_clicker",
+      score: finalScore,
+      accuracy:
+        gameState.totalTargets > 0
+          ? ((gameState.targetsHit / gameState.totalTargets) * 100).toFixed(1)
+          : 0,
+    });
+
+    setTestResults((prev) => [
+      ...prev,
+      `Game completed! Score: ${finalScore}, Accuracy: ${
+        gameState.totalTargets > 0
+          ? ((gameState.targetsHit / gameState.totalTargets) * 100).toFixed(1)
+          : 0
+      }%`,
+    ]);
+  };
+
+  const hitTarget = () => {
+    if (!gameState.isPlaying) return;
+
+    const newScore = gameState.score + 10 * gameState.gameLevel;
+    const newTargetsHit = gameState.targetsHit + 1;
+    const newLevel = Math.floor(newScore / 50) + 1;
+
+    setGameState((prev) => ({
+      ...prev,
+      score: newScore,
+      targetsHit: newTargetsHit,
+      gameLevel: newLevel,
+    }));
+
+    // Track target hit
+    clarityEvents.track("game_target_hit", {
+      game_type: "target_clicker",
+      current_score: newScore,
+      current_level: newLevel,
+      target_position: gameState.targetPosition,
+    });
+
+    // Track rage click if user is clicking rapidly
+    if (newTargetsHit > 5) {
+      clarityEvents.rageClick("game_target", "game", newTargetsHit);
+    }
+  };
+
   // Initialize Clarity and tracking on component mount
   useEffect(() => {
     // Initialize Clarity
@@ -590,7 +738,7 @@ function App() {
                 required
               />
               <small className="form-hint">
-                💡 Hint: Enter "9" to test error handling
+                💡 Hint: Enter "9" and click Next to test validation error
               </small>
               {multiStepForm.errors.age && (
                 <div className="error-message">{multiStepForm.errors.age}</div>
@@ -853,6 +1001,100 @@ function App() {
     </div>
   );
 
+  const renderGameTab = () => (
+    <div className="tab-content">
+      <h2>🎮 Target Clicker Minigame</h2>
+      <p>Test Clarity tracking with this fun target-clicking game!</p>
+
+      <div className="game-container">
+        <div className="game-info">
+          <div className="game-stats">
+            <div className="stat">
+              <span className="stat-label">Score:</span>
+              <span className="stat-value">{gameState.score}</span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">Time:</span>
+              <span className="stat-value">{gameState.timeLeft}s</span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">Level:</span>
+              <span className="stat-value">{gameState.gameLevel}</span>
+            </div>
+            <div className="stat">
+              <span className="stat-label">High Score:</span>
+              <span className="stat-value">{gameState.highScore}</span>
+            </div>
+          </div>
+
+          {!gameState.isPlaying ? (
+            <div className="game-controls">
+              <button className="demo-button primary" onClick={startGame}>
+                {gameState.highScore > 0 ? "Play Again" : "Start Game"}
+              </button>
+              {gameState.highScore > 0 && (
+                <div className="game-results">
+                  <p>Last Game Results:</p>
+                  <p>Score: {gameState.score}</p>
+                  <p>Targets Hit: {gameState.targetsHit}</p>
+                  <p>
+                    Accuracy:{" "}
+                    {gameState.totalTargets > 0
+                      ? (
+                          (gameState.targetsHit / gameState.totalTargets) *
+                          100
+                        ).toFixed(1)
+                      : 0}
+                    %
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="game-instructions">
+              <p>🎯 Click the moving target to score points!</p>
+              <p>⚡ Targets move faster as you level up!</p>
+              <p>⏱️ You have 30 seconds to get the highest score!</p>
+            </div>
+          )}
+        </div>
+
+        <div className="game-area">
+          {gameState.isPlaying && (
+            <div
+              className="game-target"
+              style={{
+                left: `${gameState.targetPosition.x}%`,
+                top: `${gameState.targetPosition.y}%`,
+              }}
+              onClick={hitTarget}
+            >
+              🎯
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="test-section">
+        <h3>Game Testing</h3>
+        <div className="test-buttons">
+          <button
+            className="test-button"
+            onClick={() => testFeatureUsage("game", "manual_test")}
+          >
+            Test Game Feature
+          </button>
+          <button
+            className="test-button"
+            onClick={() => testUserJourney("game_interaction")}
+          >
+            Test Game Journey
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderResultsTab = () => (
     <div className="tab-content">
       <h2>Test Results</h2>
@@ -930,6 +1172,12 @@ function App() {
             Advanced Testing
           </button>
           <button
+            className={`nav-tab ${activeTab === "game" ? "active" : ""}`}
+            onClick={() => handleTabChange("game")}
+          >
+            🎮 Game
+          </button>
+          <button
             className={`nav-tab ${activeTab === "results" ? "active" : ""}`}
             onClick={() => handleTabChange("results")}
           >
@@ -944,6 +1192,7 @@ function App() {
         {activeTab === "multistep" && renderMultiStepFormTab()}
         {activeTab === "about" && renderAboutTab()}
         {activeTab === "testing" && renderTestingTab()}
+        {activeTab === "game" && renderGameTab()}
         {activeTab === "results" && renderResultsTab()}
       </main>
 

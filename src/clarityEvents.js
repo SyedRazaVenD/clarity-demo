@@ -83,6 +83,24 @@ export const clarityEvents = {
     });
   },
 
+  formValidationError: (
+    fieldName,
+    errorMessage,
+    formType,
+    step,
+    value,
+    validationType
+  ) => {
+    clarityEvents.track("form_validation_error", {
+      field_name: fieldName,
+      error_message: errorMessage,
+      form_type: formType,
+      step: step,
+      value: value,
+      validation_type: validationType,
+    });
+  },
+
   // Modal events
   modalOpened: (modalType, triggerPage) => {
     clarityEvents.track("modal_opened", {
