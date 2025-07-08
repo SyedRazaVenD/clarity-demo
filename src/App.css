@@ -179,6 +179,13 @@
   box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
 }
 
+.submit-button:disabled {
+  background: #666;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
 .info-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -229,6 +236,108 @@
 
 .modal-content .demo-button {
   margin-top: 20px;
+}
+
+/* Multi-Step Form Styles */
+.form-progress {
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4CAF50, #45a049);
+  transition: width 0.3s ease;
+}
+
+.multi-step-form {
+  max-width: 600px;
+  margin: 0 auto;
+  text-align: left;
+}
+
+.form-step {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  padding: 25px;
+  margin-bottom: 20px;
+}
+
+.form-step h3 {
+  margin-top: 0;
+  color: #FFD700;
+  font-size: 1.4rem;
+  margin-bottom: 20px;
+}
+
+.form-hint {
+  display: block;
+  margin-top: 5px;
+  font-size: 14px;
+  color: #FFD700;
+  font-style: italic;
+}
+
+.error-message {
+  background: rgba(244, 67, 54, 0.2);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+  border-radius: 5px;
+  padding: 10px;
+  margin-top: 8px;
+  color: #ffcdd2;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.form-navigation {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.nav-button {
+  padding: 12px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 25px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  min-width: 100px;
+}
+
+.nav-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.nav-button.prev {
+  background: rgba(158, 158, 158, 0.3);
+}
+
+.nav-button.prev:hover {
+  background: rgba(158, 158, 158, 0.5);
+}
+
+.nav-button.next {
+  background: rgba(33, 150, 243, 0.3);
+}
+
+.nav-button.next:hover {
+  background: rgba(33, 150, 243, 0.5);
 }
 
 /* New Testing Styles */
@@ -381,5 +490,13 @@
   .test-button {
     width: 100%;
     max-width: 200px;
+  }
+
+  .form-navigation {
+    flex-direction: column;
+  }
+
+  .nav-button {
+    width: 100%;
   }
 }

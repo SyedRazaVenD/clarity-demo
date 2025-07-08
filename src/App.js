@@ -19,6 +19,24 @@ function App() {
   const [errorCount, setErrorCount] = useState(0);
   const [featureUsage, setFeatureUsage] = useState({});
 
+  // Multi-step form state
+  const [multiStepForm, setMultiStepForm] = useState({
+    step: 1,
+    totalSteps: 4,
+    data: {
+      firstName: "",
+      lastName: "",
+      phone: "",
+      age: "",
+      occupation: "",
+      company: "",
+      experience: "",
+      salary: "",
+    },
+    errors: {},
+    isSubmitting: false,
+  });
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -33,6 +51,54 @@ function App() {
       value.length > 0,
       value.length
     );
+  };
+
+  // Multi-step form input handler
+  const handleMultiStepInputChange = (e) => {
+    const { name, value } = e.target;
+
+    setMultiStepForm((prev) => ({
+      ...prev,
+      data: {
+        ...prev.data,
+        [name]: value,
+      },
+      errors: {
+        ...prev.errors,
+        [name]: "", // Clear error when user starts typing
+      },
+    }));
+
+    // Track form field interactions
+    clarityEvents.formFieldInteraction(
+      name,
+      e.target.type,
+      value.length > 0,
+      value.length
+    );
+
+    // Check for error condition (number 9)
+    if (name === "age" && value === "9") {
+      setMultiStepForm((prev) => ({
+        ...prev,
+        errors: {
+          ...prev.errors,
+          [name]: "Error: Number 9 is not allowed for testing purposes!",
+        },
+      }));
+
+      // Track form error
+      clarityEvents.track("form_error", {
+        field_name: name,
+        error_message: "Number 9 is not allowed for testing purposes!",
+        form_type: "multi_step_form",
+        step: multiStepForm.step,
+        value: value,
+      });
+
+      // Track user frustration
+      clarityEvents.rageClick("form_field", activeTab, 1);
+    }
   };
 
   const handleSubmit = (e) => {
@@ -58,6 +124,130 @@ function App() {
 
     alert("Form submitted! Check Clarity dashboard for interaction tracking.");
     setFormData({ name: "", email: "", message: "" });
+  };
+
+  // Multi-step form navigation
+  const nextStep = () => {
+    if (multiStepForm.step < multiStepForm.totalSteps) {
+      const nextStepNum = multiStepForm.step + 1;
+
+      // Track step navigation
+      clarityEvents.track("form_step_navigation", {
+        from_step: multiStepForm.step,
+        to_step: nextStepNum,
+        form_type: "multi_step_form",
+        direction: "next",
+      });
+
+      setMultiStepForm((prev) => ({
+        ...prev,
+        step: nextStepNum,
+      }));
+
+      // Track user journey
+      clarityEvents.userJourney(`form_step_${nextStepNum}`, "multi_step_form", {
+        step_number: nextStepNum,
+        total_steps: multiStepForm.totalSteps,
+      });
+    }
+  };
+
+  const prevStep = () => {
+    if (multiStepForm.step > 1) {
+      const prevStepNum = multiStepForm.step - 1;
+
+      // Track step navigation
+      clarityEvents.track("form_step_navigation", {
+        from_step: multiStepForm.step,
+        to_step: prevStepNum,
+        form_type: "multi_step_form",
+        direction: "previous",
+      });
+
+      setMultiStepForm((prev) => ({
+        ...prev,
+        step: prevStepNum,
+      }));
+    }
+  };
+
+  // Multi-step form submission
+  const handleMultiStepSubmit = (e) => {
+    e.preventDefault();
+
+    // Check for errors
+    const hasErrors = Object.values(multiStepForm.errors).some(
+      (error) => error.length > 0
+    );
+
+    if (hasErrors) {
+      // Track form submission with errors
+      clarityEvents.track("form_submission_error", {
+        form_type: "multi_step_form",
+        errors: multiStepForm.errors,
+        step: multiStepForm.step,
+        total_steps: multiStepForm.totalSteps,
+      });
+
+      alert("Please fix the errors before submitting!");
+      return;
+    }
+
+    setMultiStepForm((prev) => ({ ...prev, isSubmitting: true }));
+
+    // Simulate submission delay
+    setTimeout(() => {
+      // Track successful form submission
+      const fieldsCompleted = Object.values(multiStepForm.data).filter(
+        (val) => val.length > 0
+      ).length;
+      const totalFields = Object.keys(multiStepForm.data).length;
+
+      clarityEvents.formSubmission(
+        "multi_step_form",
+        fieldsCompleted,
+        totalFields,
+        {
+          total_steps: multiStepForm.totalSteps,
+          completion_rate: (fieldsCompleted / totalFields) * 100,
+          form_data: multiStepForm.data,
+        }
+      );
+
+      // Track feature usage
+      clarityEvents.featureUsage("multi_step_form", "completed", {
+        steps_completed: multiStepForm.totalSteps,
+        fields_filled: fieldsCompleted,
+      });
+
+      // Track user journey completion
+      clarityEvents.userJourney("form_completed", "multi_step_form", {
+        total_steps: multiStepForm.totalSteps,
+        completion_time: new Date().toISOString(),
+      });
+
+      alert(
+        "Multi-step form submitted successfully! Check Clarity dashboard for detailed analytics."
+      );
+
+      // Reset form
+      setMultiStepForm({
+        step: 1,
+        totalSteps: 4,
+        data: {
+          firstName: "",
+          lastName: "",
+          phone: "",
+          age: "",
+          occupation: "",
+          company: "",
+          experience: "",
+          salary: "",
+        },
+        errors: {},
+        isSubmitting: false,
+      });
+    }, 2000);
   };
 
   const handleButtonClick = (action, buttonType = "general") => {
@@ -323,6 +513,200 @@ function App() {
     </div>
   );
 
+  const renderMultiStepFormTab = () => (
+    <div className="tab-content">
+      <h2>Multi-Step Form with Error Testing</h2>
+      <p>
+        Test form analytics, step navigation, and error handling with Clarity.
+      </p>
+
+      <div className="form-progress">
+        <div className="progress-bar">
+          <div
+            className="progress-fill"
+            style={{
+              width: `${
+                (multiStepForm.step / multiStepForm.totalSteps) * 100
+              }%`,
+            }}
+          ></div>
+        </div>
+        <p>
+          Step {multiStepForm.step} of {multiStepForm.totalSteps}
+        </p>
+      </div>
+
+      <form onSubmit={handleMultiStepSubmit} className="multi-step-form">
+        {multiStepForm.step === 1 && (
+          <div className="form-step">
+            <h3>Personal Information</h3>
+            <div className="form-group">
+              <label htmlFor="firstName">First Name:</label>
+              <input
+                type="text"
+                id="firstName"
+                name="firstName"
+                value={multiStepForm.data.firstName}
+                onChange={handleMultiStepInputChange}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="lastName">Last Name:</label>
+              <input
+                type="text"
+                id="lastName"
+                name="lastName"
+                value={multiStepForm.data.lastName}
+                onChange={handleMultiStepInputChange}
+                required
+              />
+            </div>
+          </div>
+        )}
+
+        {multiStepForm.step === 2 && (
+          <div className="form-step">
+            <h3>Contact Information</h3>
+            <div className="form-group">
+              <label htmlFor="phone">Phone Number:</label>
+              <input
+                type="tel"
+                id="phone"
+                name="phone"
+                value={multiStepForm.data.phone}
+                onChange={handleMultiStepInputChange}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="age">Age:</label>
+              <input
+                type="number"
+                id="age"
+                name="age"
+                value={multiStepForm.data.age}
+                onChange={handleMultiStepInputChange}
+                required
+              />
+              <small className="form-hint">
+                💡 Hint: Enter "9" to test error handling
+              </small>
+              {multiStepForm.errors.age && (
+                <div className="error-message">{multiStepForm.errors.age}</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {multiStepForm.step === 3 && (
+          <div className="form-step">
+            <h3>Professional Information</h3>
+            <div className="form-group">
+              <label htmlFor="occupation">Occupation:</label>
+              <input
+                type="text"
+                id="occupation"
+                name="occupation"
+                value={multiStepForm.data.occupation}
+                onChange={handleMultiStepInputChange}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="company">Company:</label>
+              <input
+                type="text"
+                id="company"
+                name="company"
+                value={multiStepForm.data.company}
+                onChange={handleMultiStepInputChange}
+                required
+              />
+            </div>
+          </div>
+        )}
+
+        {multiStepForm.step === 4 && (
+          <div className="form-step">
+            <h3>Additional Details</h3>
+            <div className="form-group">
+              <label htmlFor="experience">Years of Experience:</label>
+              <input
+                type="number"
+                id="experience"
+                name="experience"
+                value={multiStepForm.data.experience}
+                onChange={handleMultiStepInputChange}
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="salary">Expected Salary:</label>
+              <input
+                type="number"
+                id="salary"
+                name="salary"
+                value={multiStepForm.data.salary}
+                onChange={handleMultiStepInputChange}
+                required
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="form-navigation">
+          {multiStepForm.step > 1 && (
+            <button
+              type="button"
+              onClick={prevStep}
+              className="nav-button prev"
+            >
+              Previous
+            </button>
+          )}
+          {multiStepForm.step < multiStepForm.totalSteps ? (
+            <button
+              type="button"
+              onClick={nextStep}
+              className="nav-button next"
+            >
+              Next
+            </button>
+          ) : (
+            <button
+              type="submit"
+              className="submit-button"
+              disabled={multiStepForm.isSubmitting}
+            >
+              {multiStepForm.isSubmitting ? "Submitting..." : "Submit Form"}
+            </button>
+          )}
+        </div>
+      </form>
+
+      <div className="test-section">
+        <h3>Multi-Step Form Testing</h3>
+        <div className="test-buttons">
+          <button
+            className="test-button"
+            onClick={() =>
+              testFeatureUsage("multi_step_form", "step_navigation")
+            }
+          >
+            Test Step Navigation
+          </button>
+          <button
+            className="test-button"
+            onClick={() => testUserJourney("multi_step_form_started")}
+          >
+            Test Form Journey
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderAboutTab = () => (
     <div className="tab-content">
       <h2>About This Demo</h2>
@@ -528,6 +912,12 @@ function App() {
             Contact Form
           </button>
           <button
+            className={`nav-tab ${activeTab === "multistep" ? "active" : ""}`}
+            onClick={() => handleTabChange("multistep")}
+          >
+            Multi-Step Form
+          </button>
+          <button
             className={`nav-tab ${activeTab === "about" ? "active" : ""}`}
             onClick={() => handleTabChange("about")}
           >
@@ -551,6 +941,7 @@ function App() {
       <main className="App-main">
         {activeTab === "home" && renderHomeTab()}
         {activeTab === "form" && renderFormTab()}
+        {activeTab === "multistep" && renderMultiStepFormTab()}
         {activeTab === "about" && renderAboutTab()}
         {activeTab === "testing" && renderTestingTab()}
         {activeTab === "results" && renderResultsTab()}
