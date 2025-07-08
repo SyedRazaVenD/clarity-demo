@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import "./App.css";
 import {
   clarityEvents,
@@ -30,6 +30,10 @@ function App() {
     targetsHit: 0,
     totalTargets: 0,
   });
+
+  // Separate refs for timers to avoid closure issues
+  const gameTimerRef = useRef(null);
+  const moveTimerRef = useRef(null);
 
   // Multi-step form state
   const [multiStepForm, setMultiStepForm] = useState({
@@ -399,6 +403,14 @@ function App() {
 
   // Game functions
   const startGame = () => {
+    // Clear any existing timers
+    if (gameTimerRef.current) {
+      clearInterval(gameTimerRef.current);
+    }
+    if (moveTimerRef.current) {
+      clearTimeout(moveTimerRef.current);
+    }
+
     setGameState((prev) => ({
       ...prev,
       isPlaying: true,
@@ -419,11 +431,11 @@ function App() {
       game_type: "target_clicker",
     });
 
-    // Start game timer
-    const gameTimer = setInterval(() => {
+    // Start game timer with proper closure handling
+    gameTimerRef.current = setInterval(() => {
       setGameState((prev) => {
         if (prev.timeLeft <= 1) {
-          clearInterval(gameTimer);
+          clearInterval(gameTimerRef.current);
           endGame(prev.score);
           return { ...prev, isPlaying: false, timeLeft: 0 };
         }
@@ -431,27 +443,103 @@ function App() {
       });
     }, 1000);
 
-    // Move target periodically
-    const targetMover = setInterval(() => {
-      setGameState((prev) => {
-        if (!prev.isPlaying) {
-          clearInterval(targetMover);
-          return prev;
-        }
-        return {
-          ...prev,
-          targetPosition: {
-            x: Math.random() * 80 + 10, // 10-90%
-            y: Math.random() * 60 + 20, // 20-80%
-          },
-          totalTargets: prev.totalTargets + 1,
+    // Start target movement with a small delay
+    setTimeout(() => {
+      scheduleNextMove();
+    }, 100);
+  };
+
+  // Function to schedule the next target movement
+  const scheduleNextMove = () => {
+    // Clear any existing move timer to prevent overlapping
+    if (moveTimerRef.current) {
+      clearTimeout(moveTimerRef.current);
+    }
+
+    // Get current game state to avoid closure issues
+    setGameState((prev) => {
+      if (!prev.isPlaying) {
+        return prev;
+      }
+
+      // Calculate movement speed based on current level
+      const baseSpeed = 1500;
+      const speedReduction = prev.gameLevel * 100;
+      const movementSpeed = Math.max(baseSpeed - speedReduction, 300); // Minimum 300ms
+
+      // Get container dimensions for proper positioning
+      const gameArea = document.querySelector(".game-area");
+      let newPosition;
+
+      if (!gameArea) {
+        // Fallback if container not found
+        newPosition = {
+          x: Math.random() * 70 + 15, // 15-85%
+          y: Math.random() * 50 + 25, // 25-75%
         };
-      });
-    }, 1500 - gameState.gameLevel * 100); // Faster as level increases
+      } else {
+        const containerRect = gameArea.getBoundingClientRect();
+        const containerWidth = containerRect.width;
+        const containerHeight = containerRect.height;
+
+        // Calculate target size to ensure it stays within bounds
+        const targetSize = window.innerWidth < 768 ? 50 : 60; // Target size in pixels
+        const maxX = containerWidth - targetSize;
+        const maxY = containerHeight - targetSize;
+
+        // Generate position within safe bounds
+        const x = Math.random() * (maxX - targetSize) + targetSize / 2;
+        const y = Math.random() * (maxY - targetSize) + targetSize / 2;
+
+        // Convert to percentage for CSS positioning
+        const xPercent = (x / containerWidth) * 100;
+        const yPercent = (y / containerHeight) * 100;
+
+        newPosition = {
+          x: Math.max(5, Math.min(95, xPercent)), // Ensure 5-95% range
+          y: Math.max(5, Math.min(95, yPercent)), // Ensure 5-95% range
+        };
+
+        // Debug logging
+        if (window.innerWidth < 768) {
+          console.log(
+            "Mobile target position:",
+            newPosition,
+            "Container:",
+            containerWidth,
+            "x",
+            containerHeight,
+            "Level:",
+            prev.gameLevel,
+            "Speed:",
+            movementSpeed
+          );
+        }
+      }
+
+      // Schedule next movement BEFORE updating state to prevent timing conflicts
+      moveTimerRef.current = setTimeout(scheduleNextMove, movementSpeed);
+
+      return {
+        ...prev,
+        targetPosition: newPosition,
+        totalTargets: prev.totalTargets + 1,
+      };
+    });
   };
 
   const endGame = (finalScore) => {
     const newHighScore = Math.max(gameState.highScore, finalScore);
+
+    // Clear all timers
+    if (gameTimerRef.current) {
+      clearInterval(gameTimerRef.current);
+      gameTimerRef.current = null;
+    }
+    if (moveTimerRef.current) {
+      clearTimeout(moveTimerRef.current);
+      moveTimerRef.current = null;
+    }
 
     setGameState((prev) => ({
       ...prev,
@@ -538,6 +626,36 @@ function App() {
 
     // Test initial feature usage
     testFeatureUsage("app", "initialized");
+
+    // Handle window resize for mobile orientation changes
+    const handleResize = () => {
+      if (gameState.isPlaying) {
+        // Clear existing timer and schedule new movement with updated container size
+        if (moveTimerRef.current) {
+          clearTimeout(moveTimerRef.current);
+        }
+        scheduleNextMove();
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [gameState.isPlaying]);
+
+  // Cleanup effect for game timers
+  useEffect(() => {
+    return () => {
+      // Cleanup timers when component unmounts
+      if (gameTimerRef.current) {
+        clearInterval(gameTimerRef.current);
+      }
+      if (moveTimerRef.current) {
+        clearTimeout(moveTimerRef.current);
+      }
+    };
   }, []);
 
   const renderHomeTab = () => (

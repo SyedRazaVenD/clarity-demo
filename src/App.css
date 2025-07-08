@@ -590,6 +590,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Ensure proper positioning context */
+  box-sizing: border-box;
+  width: 100%;
 }
 
 .game-target {
@@ -608,6 +611,11 @@
   transform: translate(-50%, -50%);
   box-shadow: 0 4px 15px rgba(255, 71, 87, 0.4);
   animation: pulse 1s infinite;
+  /* Improve touch interaction on mobile */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .game-target:hover {
@@ -653,11 +661,26 @@
   
   .game-area {
     height: 300px;
+    /* Ensure proper positioning on mobile */
+    position: relative;
+    overflow: hidden;
   }
   
   .game-target {
     width: 50px;
     height: 50px;
     font-size: 20px;
+    /* Ensure target is clickable on mobile */
+    min-width: 44px;
+    min-height: 44px;
+    /* Improve touch target size */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* Ensure game container doesn't overflow on mobile */
+  .game-container {
+    max-width: 100%;
+    padding: 0 10px;
   }
 }
