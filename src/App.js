@@ -35,6 +35,13 @@ function App() {
   const gameTimerRef = useRef(null);
   const moveTimerRef = useRef(null);
 
+  // User identification state
+  const [userInfo, setUserInfo] = useState({
+    isIdentified: false,
+    userId: null,
+    userData: {},
+  });
+
   // Multi-step form state
   const [multiStepForm, setMultiStepForm] = useState({
     step: 1,
@@ -399,6 +406,51 @@ function App() {
     });
 
     setTestResults((prev) => [...prev, `User journey step: ${step}`]);
+  };
+
+  // User identification functions
+  const identifyUser = (userId, userData = {}) => {
+    clarityEvents.identifyUser(userId, userData);
+
+    setUserInfo({
+      isIdentified: true,
+      userId: userId,
+      userData: userData,
+    });
+
+    setTestResults((prev) => [...prev, `User identified: ${userId}`]);
+
+    // Track user identification in feature usage
+    clarityEvents.featureUsage("user_identification", "identified", {
+      user_id: userId,
+      user_data: userData,
+    });
+  };
+
+  const clearUserIdentification = () => {
+    clarityEvents.clearUser();
+
+    setUserInfo({
+      isIdentified: false,
+      userId: null,
+      userData: {},
+    });
+
+    setTestResults((prev) => [...prev, "User identification cleared"]);
+
+    // Track user identification clearing
+    clarityEvents.featureUsage("user_identification", "cleared", {});
+  };
+
+  const getCurrentUserInfo = () => {
+    const userId = clarityEvents.getCurrentUserId();
+    const sessionId = clarityEvents.getSessionId();
+
+    return {
+      userId: userId,
+      sessionId: sessionId,
+      isIdentified: userInfo.isIdentified,
+    };
   };
 
   // Game functions
@@ -1213,6 +1265,210 @@ function App() {
     </div>
   );
 
+  const renderUserTab = () => {
+    const currentUserInfo = getCurrentUserInfo();
+
+    return (
+      <div className="tab-content">
+        <h2>👤 User Identification</h2>
+        <p>Test Microsoft Clarity user identification and session tracking.</p>
+
+        <div className="user-info-section">
+          <h3>Current User Status</h3>
+          <div className="user-status">
+            <div className="status-item">
+              <strong>User ID:</strong>{" "}
+              {currentUserInfo.userId || "Not identified"}
+            </div>
+            <div className="status-item">
+              <strong>Session ID:</strong>{" "}
+              {currentUserInfo.sessionId || "Not available"}
+            </div>
+            <div className="status-item">
+              <strong>Status:</strong>{" "}
+              {userInfo.isIdentified ? "✅ Identified" : "❌ Anonymous"}
+            </div>
+          </div>
+        </div>
+
+        <div className="user-actions-section">
+          <h3>User Identification Actions</h3>
+
+          <div className="identification-form">
+            <div className="form-group">
+              <label htmlFor="userId">User ID:</label>
+              <input
+                type="text"
+                id="userId"
+                placeholder="Enter user ID (e.g., user123, john_doe)"
+                defaultValue=""
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="userEmail">Email (optional):</label>
+              <input
+                type="email"
+                id="userEmail"
+                placeholder="user@example.com"
+                defaultValue=""
+              />
+            </div>
+            <div className="form-group">
+              <label htmlFor="userRole">Role (optional):</label>
+              <select id="userRole" defaultValue="">
+                <option value="">Select role</option>
+                <option value="admin">Admin</option>
+                <option value="user">User</option>
+                <option value="tester">Tester</option>
+                <option value="developer">Developer</option>
+              </select>
+            </div>
+
+            <div className="button-group">
+              <button
+                className="demo-button primary"
+                onClick={() => {
+                  const userId = document.getElementById("userId").value;
+                  const email = document.getElementById("userEmail").value;
+                  const role = document.getElementById("userRole").value;
+
+                  if (userId.trim()) {
+                    const userData = {};
+                    if (email) userData.email = email;
+                    if (role) userData.role = role;
+
+                    identifyUser(userId, userData);
+                  } else {
+                    alert("Please enter a User ID");
+                  }
+                }}
+              >
+                Identify User
+              </button>
+
+              <button
+                className="demo-button danger"
+                onClick={clearUserIdentification}
+              >
+                Clear Identification
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="test-section">
+          <h3>Quick Identification Tests</h3>
+          <div className="test-buttons">
+            <button
+              className="test-button"
+              onClick={() =>
+                identifyUser("test_user_001", {
+                  role: "tester",
+                  email: "test@example.com",
+                })
+              }
+            >
+              Test User 1
+            </button>
+            <button
+              className="test-button"
+              onClick={() =>
+                identifyUser("admin_user_002", {
+                  role: "admin",
+                  email: "admin@example.com",
+                })
+              }
+            >
+              Test Admin
+            </button>
+            <button
+              className="test-button"
+              onClick={() =>
+                identifyUser("developer_003", {
+                  role: "developer",
+                  email: "dev@example.com",
+                })
+              }
+            >
+              Test Developer
+            </button>
+            <button
+              className="test-button"
+              onClick={() =>
+                testFeatureUsage("user_identification", "status_check")
+              }
+            >
+              Check Status
+            </button>
+          </div>
+        </div>
+
+        <div className="info-section">
+          <h3>Microsoft Clarity Identify API Implementation</h3>
+          <div className="info-cards">
+            <div className="info-card">
+              <h4>🔍 Official Clarity API</h4>
+              <p>
+                Using the correct Clarity Identify API:{" "}
+                <code>
+                  clarity("identify", "custom-id", "session-id", "page-id",
+                  "friendly-name")
+                </code>
+              </p>
+            </div>
+            <div className="info-card">
+              <h4>👤 Custom User ID</h4>
+              <p>
+                Your custom ID (email, user ID, etc.) is hashed by Clarity for
+                privacy and used for cross-device tracking.
+              </p>
+            </div>
+            <div className="info-card">
+              <h4>📊 Cross-Session Tracking</h4>
+              <p>
+                Custom IDs persist across sessions, devices, and browsers,
+                unlike Clarity's auto-generated anonymous IDs.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="code-example-section">
+          <h3>API Usage Examples</h3>
+          <div className="code-examples">
+            <div className="code-example">
+              <h4>Identify by Email (Recommended)</h4>
+              <pre>
+                <code>{`// Best for cross-device tracking
+clarityEvents.identifyUserByEmail("user@example.com", {
+  name: "John Doe",
+  role: "admin"
+});`}</code>
+              </pre>
+            </div>
+            <div className="code-example">
+              <h4>Identify by User ID</h4>
+              <pre>
+                <code>{`// Use internal user ID
+clarityEvents.identifyUserById("user_12345", {
+  email: "user@example.com",
+  plan: "premium"
+});`}</code>
+              </pre>
+            </div>
+            <div className="code-example">
+              <h4>Clear Identification</h4>
+              <pre>
+                <code>{`// Clear user identification
+clarityEvents.clearUser();`}</code>
+              </pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderResultsTab = () => (
     <div className="tab-content">
       <h2>Test Results</h2>
@@ -1296,6 +1552,12 @@ function App() {
             🎮 Game
           </button>
           <button
+            className={`nav-tab ${activeTab === "user" ? "active" : ""}`}
+            onClick={() => handleTabChange("user")}
+          >
+            👤 User ID
+          </button>
+          <button
             className={`nav-tab ${activeTab === "results" ? "active" : ""}`}
             onClick={() => handleTabChange("results")}
           >
@@ -1311,6 +1573,7 @@ function App() {
         {activeTab === "about" && renderAboutTab()}
         {activeTab === "testing" && renderTestingTab()}
         {activeTab === "game" && renderGameTab()}
+        {activeTab === "user" && renderUserTab()}
         {activeTab === "results" && renderResultsTab()}
       </main>
 

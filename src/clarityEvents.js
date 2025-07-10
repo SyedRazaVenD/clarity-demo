@@ -2,14 +2,140 @@
 // This file contains all custom event tracking functions for better organization
 
 export const clarityEvents = {
+  // User identification state
+  currentUser: null,
+  sessionId: null,
+
   // Initialize Clarity tracking
   init: () => {
     if (typeof window !== "undefined" && window.clarity) {
       console.log("Clarity is available for custom events");
+
+      // Generate session ID for this visit
+      clarityEvents.sessionId = clarityEvents.generateSessionId();
+
+      // Try to get existing user ID from localStorage
+      const existingUserId = localStorage.getItem("clarity_user_id");
+      if (existingUserId) {
+        clarityEvents.currentUser = {
+          id: existingUserId,
+          type: "returning",
+        };
+        console.log("Returning user identified:", existingUserId);
+
+        // Automatically re-identify returning users with Clarity API
+        // This ensures the custom ID is associated with all their activity
+        window.clarity(
+          "identify",
+          existingUserId, // custom-id
+          clarityEvents.sessionId, // custom-session-id
+          window.location.pathname, // custom-page-id
+          existingUserId // friendly-name
+        );
+        console.log("Returning user re-identified with Clarity API");
+      }
+
       return true;
     }
     console.warn("Clarity not available");
     return false;
+  },
+
+  // Generate unique session ID
+  generateSessionId: () => {
+    return (
+      "session_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9)
+    );
+  },
+
+  // Identify user with custom ID using official Clarity API
+  identifyUser: (userId, userData = {}) => {
+    if (window.clarity) {
+      // Store user ID in localStorage for persistence
+      localStorage.setItem("clarity_user_id", userId);
+
+      // Update current user
+      clarityEvents.currentUser = {
+        id: userId,
+        type: "identified",
+        ...userData,
+      };
+
+      // Extract user data for Clarity API
+      const email = userData.email || null;
+      const role = userData.role || null;
+      const friendlyName = userData.name || userData.email || userId;
+
+      // Use official Clarity Identify API syntax:
+      // clarity("identify", "custom-id", "custom-session-id", "custom-page-id", "friendly-name")
+      window.clarity(
+        "identify",
+        userId, // custom-id (required)
+        clarityEvents.sessionId, // custom-session-id (optional)
+        window.location.pathname, // custom-page-id (optional)
+        friendlyName // friendly-name (optional)
+      );
+
+      console.log("User identified with Clarity API:", {
+        customId: userId,
+        sessionId: clarityEvents.sessionId,
+        pageId: window.location.pathname,
+        friendlyName: friendlyName,
+      });
+
+      // Track user identification event
+      clarityEvents.track("user_identified", {
+        user_id: userId,
+        user_data: userData,
+        session_id: clarityEvents.sessionId,
+        clarity_api_used: true,
+      });
+    }
+  },
+
+  // Get current user ID
+  getCurrentUserId: () => {
+    return clarityEvents.currentUser?.id || null;
+  },
+
+  // Get session ID
+  getSessionId: () => {
+    return clarityEvents.sessionId;
+  },
+
+  // Clear user identification
+  clearUser: () => {
+    localStorage.removeItem("clarity_user_id");
+    clarityEvents.currentUser = null;
+
+    if (window.clarity) {
+      // Clear user identification in Clarity using official API
+      // Pass null as custom-id to clear identification
+      window.clarity("identify", null, null, null, null);
+      console.log("User identification cleared using Clarity API");
+    }
+  },
+
+  // Example usage functions for different scenarios
+  identifyUserByEmail: (email, userData = {}) => {
+    // Best practice: Use email as custom-id for cross-device tracking
+    clarityEvents.identifyUser(email, {
+      email: email,
+      ...userData,
+    });
+  },
+
+  identifyUserById: (userId, userData = {}) => {
+    // Use internal user ID for tracking
+    clarityEvents.identifyUser(userId, userData);
+  },
+
+  // Get Clarity's auto-generated user ID (for comparison)
+  getClarityUserId: () => {
+    // This would be Clarity's auto-generated anonymous ID
+    // Note: This is not directly accessible via the API
+    // but you can see it in the Clarity dashboard
+    return "Clarity auto-generated ID (not accessible via API)";
   },
 
   // Generic event tracking
@@ -23,8 +149,16 @@ export const clarityEvents = {
           ? `${window.screen.width}x${window.screen.height}`
           : "unknown",
         viewport: `${window.innerWidth}x${window.innerHeight}`,
+        // Add user identification to all events
+        user_id: clarityEvents.getCurrentUserId(),
+        session_id: clarityEvents.getSessionId(),
+        user_type: clarityEvents.currentUser?.type || "anonymous",
       });
-      console.log(`Clarity Event: ${eventName}`, eventData);
+      console.log(`Clarity Event: ${eventName}`, {
+        ...eventData,
+        user_id: clarityEvents.getCurrentUserId(),
+        session_id: clarityEvents.getSessionId(),
+      });
     }
   },
 
